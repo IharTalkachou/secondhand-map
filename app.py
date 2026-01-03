@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 import sqlite3
 
 app = Flask(__name__)
@@ -41,7 +41,7 @@ def api_shops():
 
 @app.route('/')
 def index():
-    return 'Сервер работает. Карта будет здесь.'
+    return render_template('map.html')
 
 if __name__ == '__main__':
     app.run(debug=True)

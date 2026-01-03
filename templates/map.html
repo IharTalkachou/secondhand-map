@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Карта скидок</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Подключаем стили Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 100vh; width: 100%; } /* Карта на весь экран */
+        body { margin: 0; padding: 0; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Подключаем скрипт Leaflet -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // 1. Инициализация карты (координаты центра и зум)
+    var map = L.map('map').setView([55.75, 37.61], 11);
+
+    // 2. Добавляем слой карты (OpenStreetMap) - это наш аналог WMS подложки
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // 3. Загружаем данные с нашего API
+    fetch('/api/shops')
+        .then(response => response.json())
+        .then(data => {
+            // 4. Добавляем GeoJSON на карту
+            L.geoJSON(data, {
+                onEachFeature: function (feature, layer) {
+                    // Настраиваем всплывающее окно (Popup)
+                    layer.bindPopup(
+                        `<b>Скидка: ${feature.properties.discount}</b><br>` + 
+                        `${feature.properties.address}`
+                    );
+                }
+            }).addTo(map);
+        })
+        .catch(error => console.error('Ошибка загрузки:', error));
+</script>
+
+</body>
+</html>
