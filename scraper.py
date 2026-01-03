@@ -1,7 +1,46 @@
 import requests
 from bs4 import BeautifulSoup
+import re
+
+def get_profit_color(discount_text):
+    '''
+    Функция задания логики определения цвета точки на карте
+    в зависимости от текста информации о цене/скидке
+    '''
+    text_lower = discount_text.lower()
+    # логика раскраски для задания цен за килограмм
+    if 'руб/кг' in text_lower:
+        prices = re.findall(r"(\d+[\.,]?\d*)", text_lower)
+        if prices:
+            price = float(prices[0].replace(',', '.'))
+            if price < 30: return 'green'
+            if price < 60: return 'orange'
+            return 'red'
+    
+    # логика раскраски для задания цен за вещь
+    if 'руб/вещь' in text_lower:
+        prices = re.findall(r"(\d+[\.,]?\d*)", text_lower)
+        if prices:
+            price = float(prices[0].replace(',', '.'))
+            if price < 4: return 'green'
+            if price < 7: return 'orange'
+            return 'red'
+        
+    # логика раскраски для задания процентов скидки
+    if '%' in text_lower:
+        percents = re.findall(r"(\d+)", text_lower)
+        if percents:
+            val = int(percents[0])
+            if val > 50: return 'green'
+            if val > 20: return 'orange'
+            return 'red'
+    
+    return 'gray'
 
 def get_discounts_modamax():
+    '''
+    Функция получения действующих предложений от сети МодаМакс
+    '''
     url = 'https://modamax.by/price/minsk'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -44,8 +83,10 @@ def get_discounts_modamax():
                     
                     results.append(
                         {
+                            'shop_name': 'МодаМакс',
                             'address': address,
-                            'discount': discount_text
+                            'discount': discount_text,
+                            'color': get_profit_color(discount_text)
                         }
                     )
                 except Exception as e:
@@ -61,5 +102,32 @@ def get_discounts_modamax():
         print(f'Глобальная ошибка {e}')
         return []
 
-if __name__ == '__main__':
-    print(get_discounts_modamax())
+def get_discounts_econom():
+    '''
+    Функция получения действующих предложений от сети ЭкономСити
+    '''
+    return [
+        {
+            "shop_name": "ЭкономСити",
+            "address": "Минск, ул.Романовская Слобода, 12",
+            "discount": "-70%",
+            "color": get_profit_color("-70%")
+        },
+        {
+            "shop_name": "ЭкономСити",
+            "address": "Минск, пр-т Рокоссовского, 114",
+            "discount": "2 руб/вещь",
+            "color": get_profit_color("2 руб/вещь")
+        }
+    ]
+
+def get_discounts():
+    all_shops = []
+    
+    print("Парсим магазин 1...")
+    all_shops.extend(get_discounts_modamax())
+    
+    print("Парсим магазин 2...")
+    all_shops.extend(get_discounts_econom())
+    
+    return all_shops

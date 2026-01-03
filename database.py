@@ -2,7 +2,7 @@ import sqlite3
 from geopy import Photon, Nominatim
 import time
 
-from scraper import get_discounts_modamax
+from scraper import get_discounts
 
 CORRECTIONS = {
     'Минск, ул. Ангарская, 36А': (53.871291, 27.685107),
@@ -18,8 +18,10 @@ def init_db():
         '''
         CREATE TABLE IF NOT EXISTS shops(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shop_name TEXT,
             address TEXT,
             discount TEXT,
+            color TEXT,
             lat REAL,
             lon REAL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -78,8 +80,10 @@ def save_to_db(data_list):
     print(f'Найдено {len(data_list)} магазинов. Обработка базы...')
     
     for item in data_list:
+        shop_name = item.get('shop_name', 'Unknown')
         address = item['address']
         discount = item['discount']
+        color = item.get('color', 'gray')
         
         print(f"Обработка: {address}")
         lat, lon = get_coordinates(address)
@@ -87,10 +91,10 @@ def save_to_db(data_list):
         if lat and lon:
             cursor.execute(
                 '''
-                INSERT INTO shops (address, discount, lat, lon)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO shops (shop_name, address, discount, color, lat, lon)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ''',
-                (address, discount, lat, lon)
+                (shop_name, address, discount, color, lat, lon)
             )
         # добавляю паузу если шло обращение к Nominatum = нет адреса в CORRECTIONS
         if address not in CORRECTIONS:
@@ -103,10 +107,10 @@ def save_to_db(data_list):
 if __name__ == '__main__':
     init_db()
     
-    print('Парсинг с сайта...')
-    scraped_data = get_discounts_modamax()
+    print('Парсинг данных с сайтов...')
+    all_data = get_discounts()
     
-    if scraped_data:
-        save_to_db(scraped_data)
+    if all_data:
+        save_to_db(all_data)
     else:
-        print('Парсинг не удался.')
+        print('Парсинг не удался или список пуст.')

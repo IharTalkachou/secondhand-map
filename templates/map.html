@@ -1,47 +1,134 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Карта скидок</title>
+    <title>Карта скидок (Минск)</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Подключаем стили Leaflet -->
+    <!-- Стили Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
-        #map { height: 100vh; width: 100%; } /* Карта на весь экран */
+        /* Сброс отступов для страницы */
         body { margin: 0; padding: 0; }
+        
+        /* Карта на весь экран */
+        #map { height: 100vh; width: 100%; }
+
+        /* --- СТИЛИ ДЛЯ МАРКЕРОВ --- */
+
+        /* 1. Обнуляем стили самого контейнера Leaflet */
+        .leaflet-div-icon {
+            background: transparent;
+            border: none;
+        }
+
+        /* 2. Наш видимый квадратик */
+        .marker-icon {
+            width: 30px;
+            height: 30px;
+            
+            /* Самое важное: рамки включаются в общий размер 30px */
+            box-sizing: border-box; 
+            
+            background: white;
+            border: 2px solid #333;
+            border-radius: 4px;
+            
+            /* Центровка буквы внутри квадрата */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3); /* Тень для красоты */
+        }
+
+        /* 3. Цветной индикатор (кружок) */
+        .status-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid white;
+            /* Цвет задается через JS (style="background-color: ...") */
+        }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<!-- Подключаем скрипт Leaflet -->
+<!-- Скрипт Leaflet -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-    // 1. Инициализация карты (координаты центра и зум)
+    // 1. Инициализация карты (Минск)
     var map = L.map('map').setView([53.90, 27.56], 12);
 
-    // 2. Добавляем слой карты (OpenStreetMap) - это наш аналог WMS подложки
+    // 2. Слой карты (OpenStreetMap)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // 3. Загружаем данные с нашего API
+    // 3. Загрузка данных
     fetch('/api/shops')
         .then(response => response.json())
         .then(data => {
-            // 4. Добавляем GeoJSON на карту
             L.geoJSON(data, {
+                pointToLayer: function (feature, latlng) {
+                    
+                    // Первая буква названия
+                    var letter = feature.properties.shop_name ? feature.properties.shop_name[0] : "?";
+                    // Цвет индикатора
+                    var color = feature.properties.color || "gray";
+
+                    // HTML начинка маркера
+                    var htmlContent = `
+                        <div class="marker-icon">
+                            ${letter}
+                            <div class="status-badge" style="background-color: ${color};"></div>
+                        </div>
+                    `;
+
+                    // Настройка иконки
+                    var myIcon = L.divIcon({
+                        className: 'leaflet-div-icon', // Используем наш "пустой" класс
+                        html: htmlContent,
+                        
+                        // ВАЖНО: Размеры должны совпадать с CSS .marker-icon (30px)
+                        iconSize: [30, 30],
+                        
+                        // ВАЖНО: Центр (якорь) - это ровно половина размера
+                        // [15, 15] означает, что центр квадрата будет на координатах дома
+                        iconAnchor: [15, 15],
+                        
+                        // Где появится всплывающее окно (чуть выше центра)
+                        popupAnchor: [0, -20]
+                    });
+
+                    return L.marker(latlng, {icon: myIcon});
+                },
                 onEachFeature: function (feature, layer) {
-                    // Настраиваем всплывающее окно (Popup)
                     layer.bindPopup(
-                        `<b>Скидка: ${feature.properties.discount}</b><br>` + 
-                        `${feature.properties.address}`
+                        `<div style="text-align: center;">
+                            <b>${feature.properties.shop_name}</b><br>
+                            <span style="color: ${feature.properties.color}; font-weight: bold;">
+                                ${feature.properties.discount}
+                            </span><br>
+                            <span style="font-size: 0.9em; color: #666;">
+                                ${feature.properties.address}
+                            </span>
+                        </div>`
                     );
                 }
             }).addTo(map);
         })
-        .catch(error => console.error('Ошибка загрузки:', error));
+        .catch(error => console.error('Ошибка:', error));
 </script>
 
 </body>

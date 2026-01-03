@@ -22,8 +22,10 @@ def api_shops():
         feature = {
             'type': 'Feature',
             'properties': {
+                'shop_name': row['shop_name'],
                 'address': row['address'],
-                'discount': row['discount']
+                'discount': row['discount'],
+                'color': row['color']
             },
             'geometry': {
                 'type': 'Point',
