@@ -1,6 +1,8 @@
 from bs4 import BeautifulSoup
 import re
 import cloudscraper
+from curl_cffi import requests as c_requests
+import time
 
 def get_profit_color(discount_text):
     '''
@@ -43,84 +45,100 @@ def get_discounts_modamax():
     '''
     url = "https://modamax.by/price/minsk"
     
-    print(f"  -> МодаМакс: Скачиваем через CloudScraper...")
+    print(f"  -> МодаМакс: Скачиваем через curl_cffi...")
     results = []
     
-    try:
-        # Создаем скрапер, который эмулирует Chrome
-        scraper = cloudscraper.create_scraper() 
-        
-        # Делаем простой запрос. Скрапер сам разберется с заголовками и шифрованием.
-        response = scraper.get(url)
-        
-        if response.status_code != 200:
-            print(f"  [Error] МодаМакс: Ошибка доступа: {response.status_code}")
-            return []
+    # так как даже через curl_cffi соединение может отваливаться
+    # буду перебирать по очереди разные браузеры, если будут ошибки
+    browsers = ["chrome110", "safari15_5", "chrome100"]
+    
+    for browser in browsers:
+        try:
+            print(f'  [Try] Пробуем зайти на МодаМакс как {browser}')
             
-        html_text = response.text
-        
-        # --- ДИАГНОСТИКА (чтобы убедиться, что скачали всё) ---
-        print(f"  [Debug] МодаМакс: Скачано байт: {len(html_text)}")
-        
-        # Парсинг
-        soup = BeautifulSoup(html_text, 'html.parser')
-        
-        # Ищем строки таблицы
-        rows = soup.find_all('div', class_='PriceTable__row')
-        print(f"  [Debug] МодаМакс: Найдено строк PriceTable__row: {len(rows)}")
-        
-        if len(rows) == 0:
-            print("  [Warn] МодаМакс: Таблица не найдена. Возможно, сервер прислал заглушку.")
-            # Можно сохранить файл для проверки, если снова будет 0
-            # with open("debug_scraper.html", "w", encoding="utf-8") as f: f.write(html_text)
-            return []
-
-        # Разбор строк
-        for row in rows:
-            try:
-                # 1. Адрес
-                addr_tag = row.find('a', class_='PriceTable__link')
-                if not addr_tag: continue
-                address = addr_tag.text.strip()
-                
-                # 2. Цена
-                today_col = row.find('div', class_='PriceTable__col--today')
-                discount_text = "-"
-                
-                if today_col:
-                    amount_div = today_col.find('div', class_='PriceTable__amount-numbers')
-                    if amount_div:
-                        rub = amount_div.contents[0].strip()
-                        coins_span = amount_div.find('span', class_='PriceTable__amount-coins')
-                        coins = coins_span.text.strip() if coins_span else "00"
-                        discount_text = f"{rub}.{coins} руб/кг"
-                    else:
-                        icon = today_col.find('img')
-                        if icon and icon.get('alt'):
-                            discount_text = icon.get('alt')
-                        else:
-                            discount_text = "Спецпредложение"
-                
-                # Фильтр закрытых магазинов
-                if "не работает" in discount_text.lower() or discount_text == "-":
-                    continue
-
-                results.append({
-                    "shop_name": "ModaMax",
-                    "address": address,
-                    "discount": discount_text,
-                    "color": get_profit_color(discount_text)
-                })
-                
-            except Exception as e:
+            # простой запрос с использованием curl_cffi
+            # impersonate=browser - скрипт имитирует работу одного из браузеров в списке browsers
+            response = c_requests.get(url, impersonate=browser, timeout=30)
+           
+            if response.status_code != 200:
+                print(f"  [Error] МодаМакс: Ошибка доступа: {response.status_code}")
+                time.sleep(2)
                 continue
+                
+            html_text = response.text
+            
+            # смотрю ответ - если скачалось слишком мало (10000 это не страница) - меняю браузер
+            if len(html_text) < 10000:
+                print(f"    [Warn] МодаМакс: Скачано мало - ({len(html_text)} байт). Повторяем...")
+                time.sleep(2)
+                continue
+            
+            # если скачено всё - успех
+            print(f"  [Success] МодаМакс: Скачано байт: {len(html_text)}")
+            
+            # парсинг скаченного
+            soup = BeautifulSoup(html_text, 'html.parser')
+            
+            # ищу строки скаченной таблицы
+            rows = soup.find_all('div', class_='PriceTable__row')
+            print(f"  [Debug] МодаМакс: Найдено строк PriceTable__row: {len(rows)}")
+            
+            # если строк нет - пробую с другим браузером
+            if len(rows) == 0:
+                print("    [Warn] Таблица не найдена в HTML.")
+                continue
+            
+            # разбор распарсенных строк
+            for row in rows:
+                try:
+                    # собираю адрес
+                    addr_tag = row.find('a', class_='PriceTable__link')
+                    if not addr_tag: continue
+                    address = addr_tag.text.strip()
+                    
+                    # собираю цену/предложение
+                    today_col = row.find('div', class_='PriceTable__col--today')
+                    discount_text = "-"
+                    
+                    if today_col:
+                        amount_div = today_col.find('div', class_='PriceTable__amount-numbers')
+                        if amount_div:
+                            rub = amount_div.contents[0].strip()
+                            coins_span = amount_div.find('span', class_='PriceTable__amount-coins')
+                            coins = coins_span.text.strip() if coins_span else "00"
+                            discount_text = f"{rub}.{coins} руб/кг"
+                        else:
+                            icon = today_col.find('img')
+                            if icon and icon.get('alt'):
+                                discount_text = icon.get('alt')
+                            else:
+                                discount_text = "Спецпредложение"
+                    
+                    # фильтр закрытых магазинов
+                    if "не работает" in discount_text.lower() or discount_text == "-":
+                        continue
+                    
+                    # склейка результатов
+                    results.append({
+                        "shop_name": "МодаМакс",
+                        "address": address,
+                        "discount": discount_text,
+                        "color": get_profit_color(discount_text)
+                    })
+                    
+                except Exception:
+                    continue
+            
+            # если парсинг удался, выходим из цикла браузеров и возвращаем result
+            print(f"  [Result] МодаМакс: Успешно обработано: {len(results)}")
+            return results
 
-        print(f"  [Result] МодаМакс: Успешно обработано: {len(results)}")
-        return results
-
-    except Exception as e:
-        print(f"  [Error] МодаМакс: Ошибка CloudScraper: {e}")
-        return []    
+        except Exception as e:
+            print(f"  [Error] МодаМакс: Сбой при обработке curl_cffi с браузером {browser}: {e}")
+            time.sleep(2)
+    
+    print('  [Fail] МодаМакс: Не удалось скачать данные после всех попыток.')
+    return [] 
 
 
 def get_discounts_econom():
