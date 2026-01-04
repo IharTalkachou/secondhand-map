@@ -7,7 +7,9 @@ from scraper import get_discounts
 CORRECTIONS = {
     'Минск, ул. Ангарская, 36А': (53.871291, 27.685107),
     'Минск, ул. Алибегова, 13/1': (53.871037, 27.473608),
-    'Минск, ул. Я. Коласа, 33': (53.924654, 27.591547)
+    'Минск, ул. Я. Коласа, 33': (53.924654, 27.591547),
+    'Молодечно, ул. В. Гостинец, 54': (54.307416, 26.829399),
+    'Минск, ул. Калиновского, 55': (53.947219, 27.628711)
 }
 
 def init_db():
@@ -49,21 +51,17 @@ def get_coordinates(address):
         replace('тр-т', '').\
         replace('/', ' к')
     # для точности добавлю Минск в поисковый запрос
-    if 'Минск' not in clean_address:
-        search_query = f'Минск, {clean_address}'
-    else:
-        search_query = clean_address
-    
+     
     try:
-        location = geolocator.geocode(search_query, limit=1)
+        location = geolocator.geocode(clean_address, limit=1)
         
         if location:
             # вывод этапов поиска для отладки
-            print(f'  [Check] Запрос для поиска: {search_query} > Результат: {location.address}')
+            print(f'  [Check] Запрос для поиска: {clean_address} > Результат: {location.address}')
                        
             return location.latitude, location.longitude
         else:
-            print(f"  [Warn] Nominatum ничего не нашел по запросу: {search_query}")
+            print(f"  [Warn] Nominatum ничего не нашел по запросу: {clean_address}")
             
     except Exception as e:
         print(f'  [Error] Ошибка геокодинга для {address}: {e}')
