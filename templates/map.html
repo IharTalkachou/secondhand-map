@@ -70,12 +70,39 @@
     // 1. Инициализация карты (Минск)
     var map = L.map('map').setView([53.90, 27.56], 12);
 
-    // 2. Слой карты (OpenStreetMap)
+    // 2.1. Слой карты (OpenStreetMap)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // 3. Загрузка данных
+    // 2.2. Слой для аналитики (полигоны)
+    var analyticsLayer = L.layerGroup().addTo(map);
+
+    // 3.1. Загружаем полигоны
+    fetch('/api/voronoi')
+        .then(response => response.json())
+        .then(data => {
+            L.geoJSON(data, {
+                style: function(feature) {
+                    return {
+                        color: feature.properties.color, // Цвет границы (как у магазина)
+                        weight: 1,
+                        opacity: 0.5,
+                        fillColor: feature.properties.color,
+                        fillOpacity: 0.1 // Очень прозрачная заливка
+                    };
+                },
+                onEachFeature: function(feature, layer) {
+                    layer.bindPopup("Зона влияния: " + feature.properties.shop_name);
+                }
+            }).addTo(analyticsLayer);
+            
+            // Важно: точки магазинов должны быть ПОВЕРХ полигонов.
+            // Если они перекрылись, можно управлять z-index, но пока оставим так.
+        })
+        .catch(error => console.error('Ошибка загрузки полигонов:', error));
+
+    // 3.2. Загрузка данных
     fetch('/api/shops')
         .then(response => response.json())
         .then(data => {

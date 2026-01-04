@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, render_template
 import sqlite3
+from analytics import generate_voronoi_geojson
 
 app = Flask(__name__)
 
@@ -45,5 +46,11 @@ def api_shops():
 def index():
     return render_template('map.html')
 
+@app.route('/api/voronoi')
+def api_voronoi():
+    data = generate_voronoi_geojson()
+    return jsonify(data)
+
 if __name__ == '__main__':
+    print(app.url_map)
     app.run(debug=True)

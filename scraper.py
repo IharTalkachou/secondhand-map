@@ -249,6 +249,15 @@ def get_discounts_econom():
                 address = address_list[i]
                 discount_text = discount_list[i]
                 
+                # фильтр "не работает" в указании информации о предложениях
+                if "не работает" in discount_text.lower():
+                    continue
+                
+                # фильтр города в адресе - оставлю только Минск
+                city_part = address.split(',')[0].strip()
+                if "Минск" not in city_part:
+                    continue
+                
                 results.append(
                     {
                         'shop_name': 'ЭкономСити',
