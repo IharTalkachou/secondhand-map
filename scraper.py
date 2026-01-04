@@ -1,4 +1,3 @@
-import requests
 from bs4 import BeautifulSoup
 import re
 import cloudscraper
@@ -129,24 +128,40 @@ def get_discounts_econom():
     Функция получения действующих предложений от сети ЭкономСити
     '''
     url = 'https://secondhand.by/promos'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
-            AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    print(f"  -> ЭкономСити: Скачиваем через requests...")
+    
+    print(f"  -> ЭкономСити: Скачиваем через cloudscraper...")
+    results = []
+    
     try:
-        response = requests.get(url, headers=headers)
+        scraper = cloudscraper.create_scraper()
+        response = scraper.get(url)
         
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            results = []
             
+            # создаю справочник иконок ЭкономСити
+            legend_map = {}
+            
+            legend_items = soup.find_all('div', class_='CalendarLegend__item')
+            
+            for item in legend_items:
+                img = item.find('img')
+                description_div = item.find('div', class_='CalendarLegend__item-title')
+                
+                if img and description_div:
+                    src = img.get('src')
+                    description = description_div.text.strip()
+                    if src:
+                        legend_map[src] = description
+            
+            print(f' [Debug] ЭкономСити: найдено {len(legend_map)} пиктограмм в легенде страницы.')
+              
             # сбор списка адресов из price__cities
             address_list = []
-            
             cities_container = soup.find('div', class_='price__cities')
+            
             if not cities_container:
-                print('Не найден блок адресов ЭкономСити')
+                print(f'  [Debug] ЭкономСити: Не найден блок адресов.')
                 return []
             
             current_city = 'Минск' # значение по умолчанию
@@ -176,16 +191,32 @@ def get_discounts_econom():
                 # собираю все ячейки в столбце сегодняшних предложений
                 cells = today_col.find_all('div', class_='price__cell')
                 for cell in cells:
-                    text = cell.get_text(strip=True) # достает текст из вложенных тэгов и чистит его
-                    # в ячейке может не быть текста, но быть пиктограмма с информацией
-                    if not text:
-                        img = cell.find('img')
-                        if img and img.get('alt'):
-                            text = img.get('alt')
-                        else:
-                            text = 'Предложений в магазине нет.'
+                    # беру основной текст в ячейке
+                    main_text = cell.get_text(strip=True, separator=' ') # достает текст из вложенных тэгов и чистит его
                     
-                    discount_list.append(text)
+                    # ищу иконки в ячейке
+                    images_in_cell = cell.find_all('img')
+                    additional_text = []
+                    for img in images_in_cell:
+                        src = img.get('src')
+                        # если ссылка есть в справочнике иконок
+                        if src in legend_map:
+                            additional_text.append(legend_map[src])
+                    
+                    # склейка текста
+                    if additional_text:
+                        full_text = f"{main_text} {' '.join(additional_text)}"
+                    else:
+                        full_text = main_text
+                    
+                    # очистка от лишних пробелов
+                    full_text = ' '.join(full_text.split())
+                    
+                    # на случай если так ничего не найдено в ячейке
+                    if not full_text:
+                        full_text = 'Предложений в магазине нет.'
+                    
+                    discount_list.append(full_text)
                 print(f'  [Debug] ЭкономСити: найдено {len(discount_list)} строк с информацией о предложениях.')
             else:
                 print('Колонка сегодняшнего дня ЭкономСити не найдена.')
